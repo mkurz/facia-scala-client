@@ -47,6 +47,8 @@ val sonatypeReleaseSettings = Seq(
 )
 
 lazy val root = (project in file(".")).aggregate(
+    fapiClient_core,
+    fapiClient_s3_sdk_v2,
     faciaJson_play27,
     faciaJson_play28,
     fapiClient_play27,
@@ -62,27 +64,31 @@ val exactPlayJsonVersions = Map(
   "28" -> "2.8.2"
 )
 
-def baseProject(module: String, majorMinorVersion: String) = Project(s"$module-play$majorMinorVersion", file(s"$module-play$majorMinorVersion"))
+val baseSettings = Seq(
+  organization := "com.gu",
+  resolvers ++= Resolver.sonatypeOssRepos("releases"),
+  scalaVersion := "2.13.11",
+  crossScalaVersions := Seq(scalaVersion.value, "2.12.18"),
+  scalacOptions := Seq(
+    "-feature",
+    "-deprecation",
+    "-Xfatal-warnings"
+  ),
+  libraryDependencies += scalaTest,
+  publishTo := sonatypePublishToBundle.value
+) ++ sonatypeReleaseSettings
+
+def playSpecificProject(module: String, majorMinorVersion: String) = Project(s"$module-play$majorMinorVersion", file(s"$module-play$majorMinorVersion"))
   .settings(
     sourceDirectory := baseDirectory.value / s"../$module/src",
-    organization := "com.gu",
-    resolvers ++= Resolver.sonatypeOssRepos("releases"),
-    scalaVersion := "2.13.11",
-    crossScalaVersions := Seq(scalaVersion.value, "2.12.18"),
-    scalacOptions := Seq(
-        "-feature",
-        "-deprecation",
-        "-Xfatal-warnings"
-    ),
-    libraryDependencies += scalaTest,
-    publishTo := sonatypePublishToBundle.value,
-    sonatypeReleaseSettings
+    baseSettings
   )
 
-def faciaJson_playJsonVersion(majorMinorVersion: String) = baseProject("facia-json", majorMinorVersion)
+def faciaJson_playJsonVersion(majorMinorVersion: String) = playSpecificProject("facia-json", majorMinorVersion)
+  .dependsOn(fapiClient_core)
   .settings(
     libraryDependencies ++= Seq(
-      awsSdk,
+      awsS3SdkV1, // ideally, this would be pushed out to a separate FAPI artifact
       commonsIo,
       "com.typesafe.play" %% "play-json" % exactPlayJsonVersions(majorMinorVersion),
       "org.scala-lang.modules" %% "scala-collection-compat" % "2.11.0",
@@ -90,7 +96,7 @@ def faciaJson_playJsonVersion(majorMinorVersion: String) = baseProject("facia-js
     )
   )
 
-def fapiClient_playJsonVersion(majorMinorVersion: String) =  baseProject("fapi-client", majorMinorVersion)
+def fapiClient_playJsonVersion(majorMinorVersion: String) =  playSpecificProject("fapi-client", majorMinorVersion)
   .settings(
     libraryDependencies ++= Seq(
       contentApi,
@@ -100,6 +106,17 @@ def fapiClient_playJsonVersion(majorMinorVersion: String) =  baseProject("fapi-c
       mockito
     )
   )
+
+lazy val fapiClient_core = Project("fapi-client-core", file("fapi-client-core")).settings(
+  libraryDependencies += eTagCachingS3Base,
+  baseSettings
+)
+
+lazy val fapiClient_s3_sdk_v2 = Project("fapi-s3-sdk-v2", file("fapi-s3-sdk-v2")).dependsOn(fapiClient_core)
+  .settings(
+  libraryDependencies += eTagCachingS3SdkV2,
+  baseSettings
+)
 
 lazy val faciaJson_play27 = faciaJson_playJsonVersion("27")
 lazy val faciaJson_play28 = faciaJson_playJsonVersion("28")
