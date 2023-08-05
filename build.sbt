@@ -47,10 +47,8 @@ val sonatypeReleaseSettings = Seq(
 )
 
 lazy val root = (project in file(".")).aggregate(
-    faciaJson_play26,
     faciaJson_play27,
     faciaJson_play28,
-    fapiClient_play26,
     fapiClient_play27,
     fapiClient_play28
   ).settings(
@@ -60,26 +58,23 @@ lazy val root = (project in file(".")).aggregate(
   )
 
 val exactPlayJsonVersions = Map(
-  "26" -> "2.6.13",
   "27" -> "2.7.4",
-  "28" -> "2.8.1"
+  "28" -> "2.8.2"
 )
 
 def baseProject(module: String, majorMinorVersion: String) = Project(s"$module-play$majorMinorVersion", file(s"$module-play$majorMinorVersion"))
   .settings(
     sourceDirectory := baseDirectory.value / s"../$module/src",
     organization := "com.gu",
-    resolvers ++= Seq(
-      Resolver.sonatypeRepo("releases"),
-      Resolver.sonatypeRepo("public"),
-      Resolver.typesafeRepo("releases")
-    ),
-    scalaVersion := "2.12.18",
+    resolvers ++= Resolver.sonatypeOssRepos("releases"),
+    scalaVersion := "2.13.11",
+    crossScalaVersions := Seq(scalaVersion.value, "2.12.18"),
     scalacOptions := Seq(
         "-feature",
         "-deprecation",
         "-Xfatal-warnings"
     ),
+    libraryDependencies += scalaTest,
     publishTo := sonatypePublishToBundle.value,
     sonatypeReleaseSettings
   )
@@ -89,7 +84,6 @@ def faciaJson_playJsonVersion(majorMinorVersion: String) = baseProject("facia-js
     libraryDependencies ++= Seq(
       awsSdk,
       commonsIo,
-      specs2,
       "com.typesafe.play" %% "play-json" % exactPlayJsonVersions(majorMinorVersion),
       "org.scala-lang.modules" %% "scala-collection-compat" % "2.11.0",
       scalaLogging
@@ -102,19 +96,18 @@ def fapiClient_playJsonVersion(majorMinorVersion: String) =  baseProject("fapi-c
       contentApi,
       contentApiDefault,
       commercialShared,
-      scalaTest,
+      scalaTestMockito,
       mockito
     )
   )
 
-lazy val crossCompileScala213 = crossScalaVersions := Seq(scalaVersion.value, "2.13.11")
+lazy val faciaJson_play27 = faciaJson_playJsonVersion("27")
+lazy val faciaJson_play28 = faciaJson_playJsonVersion("28")
 
+lazy val fapiClient_play27 = fapiClient_playJsonVersion("27").dependsOn(faciaJson_play27)
+lazy val fapiClient_play28 = fapiClient_playJsonVersion("28").dependsOn(faciaJson_play28)
 
-lazy val faciaJson_play26 = faciaJson_playJsonVersion("26")
-lazy val faciaJson_play27 = faciaJson_playJsonVersion("27").settings(crossCompileScala213)
-lazy val faciaJson_play28 = faciaJson_playJsonVersion("28").settings(crossCompileScala213)
-
-lazy val fapiClient_play26 = fapiClient_playJsonVersion("26").dependsOn(faciaJson_play26)
-lazy val fapiClient_play27 = fapiClient_playJsonVersion("27").dependsOn(faciaJson_play27).settings(crossCompileScala213)
-lazy val fapiClient_play28 = fapiClient_playJsonVersion("28").dependsOn(faciaJson_play28).settings(crossCompileScala213)
-
+Test/testOptions += Tests.Argument(
+  TestFrameworks.ScalaTest,
+  "-u", s"test-results/scala-${scalaVersion.value}", "-o"
+)
